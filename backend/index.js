@@ -1,70 +1,52 @@
- const express = require("express");
+ const express = require("express")
+const mongoose = require("mongoose")
+const cors = require("cors")
+require("dotenv").config()
 
-const app = express();
-const PORT = 3000;
+const authRoutes = require("./routes/auth")
 
-app.use(express.json());
+const app = express()
+const PORT = 3000
 
-let sweets = [
-  { id: 1, name: "Gulab Jamun", category: "Milk", price: 10, quantity: 20 },
-  { id: 2, name: "Rasgulla", category: "Milk", price: 12, quantity: 15 },
-  { id: 3, name: "Ladoo", category: "Dry", price: 8, quantity: 30 },
-  { id: 4, name: "Chocolate Barfi", category: "Milk", price: 20, quantity: 40 }
-];
+app.use(cors())
+app.use(express.json())
 
-app.get("/", (req, res) => {
-  res.send("Sweet Shop Backend is running");
-});
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log("MongoDB connected"))
+  .catch(err => console.log(err.message))
 
-app.get("/api/sweets", (req, res) => {
-  res.json(sweets);
-});
+const SweetSchema = new mongoose.Schema({
+  name: String,
+  category: String,
+  price: Number,
+  quantity: Number
+})
 
-app.post("/api/sweets", (req, res) => {
-  const { name, category, price, quantity } = req.body;
+const Sweet = mongoose.model("Sweet", SweetSchema)
 
-  const newSweet = {
-    id: sweets.length + 1,
-    name,
-    category,
-    price,
-    quantity
-  };
+app.get("/api/sweets", async (req, res) => {
+  const sweets = await Sweet.find()
+  res.json(sweets)
+})
 
-  sweets.push(newSweet);
-  res.status(201).json(newSweet);
-});
+app.post("/api/sweets", async (req, res) => {
+  const sweet = new Sweet(req.body)
+  const saved = await sweet.save()
+  res.status(201).json(saved)
+})
 
-app.put("/api/sweets/:id", (req, res) => {
-  const id = parseInt(req.params.id);
-  const { name, category, price, quantity } = req.body;
+app.put("/api/sweets/:id", async (req, res) => {
+  const updated = await Sweet.findByIdAndUpdate(req.params.id, req.body, { new: true })
+  res.json(updated)
+})
 
-  const sweet = sweets.find(s => s.id === id);
+app.delete("/api/sweets/:id", async (req, res) => {
+  await Sweet.findByIdAndDelete(req.params.id)
+  res.json({ message: "Deleted" })
+})
 
-  if (!sweet) {
-    return res.status(404).json({ message: "Sweet not found" });
-  }
-
-  sweet.name = name;
-  sweet.category = category;
-  sweet.price = price;
-  sweet.quantity = quantity;
-
-  res.json(sweet);
-});
-
-app.delete("/api/sweets/:id", (req, res) => {
-  const id = parseInt(req.params.id);
-  const index = sweets.findIndex(s => s.id === id);
-
-  if (index === -1) {
-    return res.status(404).json({ message: "Sweet not found" });
-  }
-
-  const deletedSweet = sweets.splice(index, 1);
-  res.json(deletedSweet[0]);
-});
+app.use("/api/auth", authRoutes)
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+  console.log(`Server running on port ${PORT}`)
+})
